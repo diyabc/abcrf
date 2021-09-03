@@ -73,6 +73,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// findweights_train_paral
+NumericMatrix findweights_train_paral(NumericMatrix trainingNodeID, NumericMatrix inbag, int ntrain, int ntree);
+RcppExport SEXP _abcrf_findweights_train_paral(SEXP trainingNodeIDSEXP, SEXP inbagSEXP, SEXP ntrainSEXP, SEXP ntreeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type trainingNodeID(trainingNodeIDSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type inbag(inbagSEXP);
+    Rcpp::traits::input_parameter< int >::type ntrain(ntrainSEXP);
+    Rcpp::traits::input_parameter< int >::type ntree(ntreeSEXP);
+    rcpp_result_gen = Rcpp::wrap(findweights_train_paral(trainingNodeID, inbag, ntrain, ntree));
+    return rcpp_result_gen;
+END_RCPP
+}
 // oobErrors
 NumericVector oobErrors(IntegerVector sequo, int ntrain, IntegerVector mod, int ntree, IntegerVector modindex, IntegerMatrix inbag, IntegerMatrix mimi);
 RcppExport SEXP _abcrf_oobErrors(SEXP sequoSEXP, SEXP ntrainSEXP, SEXP modSEXP, SEXP ntreeSEXP, SEXP modindexSEXP, SEXP inbagSEXP, SEXP mimiSEXP) {
@@ -142,6 +156,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_abcrf_findweights", (DL_FUNC) &_abcrf_findweights, 6},
     {"_abcrf_findweights_oob", (DL_FUNC) &_abcrf_findweights_oob, 6},
     {"_abcrf_findweights_train", (DL_FUNC) &_abcrf_findweights_train, 5},
+    {"_abcrf_findweights_train_paral", (DL_FUNC) &_abcrf_findweights_train_paral, 4},
     {"_abcrf_oobErrors", (DL_FUNC) &_abcrf_oobErrors, 7},
     {"_abcrf_oobErrorsReg", (DL_FUNC) &_abcrf_oobErrorsReg, 6},
     {"_abcrf_oobMedErrorsReg", (DL_FUNC) &_abcrf_oobMedErrorsReg, 6},

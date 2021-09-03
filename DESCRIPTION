@@ -11,8 +11,9 @@ License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: TRUE
 Imports: readr, MASS, matrixStats, ranger, doParallel, parallel,
-        foreach, stringr, Rcpp (>= 0.11.2)
-LinkingTo: Rcpp, RcppArmadillo
+        foreach, stringr, Rcpp (>= 0.11.2), RcppParallel
+LinkingTo: Rcpp, RcppArmadillo, RcppParallel
+SystemRequirements: GNU make
 Depends: R(>= 3.1)
 NeedsCompilation: yes
 Maintainer: Jean-Michel Marin <jean-michel.marin@umontpellier.fr>

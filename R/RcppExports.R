@@ -17,6 +17,10 @@ findweights_train <- function(trainingNodeID, inbag, ntrain, trainIdx, ntree) {
     .Call(`_abcrf_findweights_train`, trainingNodeID, inbag, ntrain, trainIdx, ntree)
 }
 
+findweights_train_paral <- function(trainingNodeID, inbag, ntrain, ntree) {
+    .Call(`_abcrf_findweights_train_paral`, trainingNodeID, inbag, ntrain, ntree)
+}
+
 oobErrors <- function(sequo, ntrain, mod, ntree, modindex, inbag, mimi) {
     .Call(`_abcrf_oobErrors`, sequo, ntrain, mod, ntree, modindex, inbag, mimi)
 }

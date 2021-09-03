@@ -156,8 +156,17 @@ predict.regAbcrf <- function(object, obs, training, quantiles=c(0.025,0.975),
       #                                                 ntrain = ntrain, ntree = ntree,
       #                                                 paral = paral, ncores = ncores)
       # var_oob <- sapply(1:ntrain, function(x) weights_train[,x] %*% residus.oob.sq)
-      pred.oob.training <- predictOOB(object, training, quantiles, paral, ncores)
-      var_oob <- pred.oob.training$variance
+      # pred.oob.training <- predictOOB(object, training, quantiles, paral, ncores)
+      # var_oob <- pred.oob.training$variance
+      if (!paral) {
+        RcppParallel::setThreadOptions(numThreads = 1)
+      } else {
+        RcppParallel::setThreadOptions(numThreads = ncores)
+      }
+      weights_train <- findweights_train_paral(trainingNodeID = nodeIDTrain,
+                                               inbag = inbag, 
+                                               ntrain = ntrain, ntree = ntree)
+      var_oob <- sapply(1:ntrain, function(x) weights_train[,x] %*% residus.oob.sq)
       varCor <- (rep(1, ntrain) %*% t(variance)) / ((var_oob) %*% t(rep(1, nnew)))
     } else {
       varCor <- 1

@@ -11,7 +11,7 @@ computed at an higher computational price.
 \usage{
 \method{predict}{regAbcrf}(object, obs, training, quantiles=c(0.025,0.975),
 paral = FALSE, ncores = if(paral) max(detectCores()-1,1) else 1, rf.weights = FALSE,
-post.err.med = FALSE, ...)
+post.err.med = FALSE, oob.weights = FALSE, var.correction = FALSE, ...)
 }
 \arguments{
   \item{object}{a \code{\link{regAbcrf}} object.}
@@ -22,6 +22,8 @@ post.err.med = FALSE, ...)
   \item{ncores}{the number of CPU cores to use for the regression random forest predictions. If paral=TRUE, it is used the number of CPU cores minus 1. If ncores is not specified and \code{\link{detectCores}} does not detect the number of CPU cores with success then 1 core is used.}
   \item{rf.weights}{a boolean that indicates if the random forest weights used to predict quantities of interest should we returned. The default value is FALSE.}
   \item{post.err.med}{a boolean that indicates if posterior errors based on posterior medians should be computed. The default value is FALSE. If computed, this function might take a much more time.}
+    \item{oob.weights}{a boolean that indicates wether the oob weights correction should be used for the error distribution estimation. Default to FALSE.}
+    \item{var.correction}{a boolean that indicates wether the variance correction should be used for the error distribution estimation. Default to FALSE.}
   \item{\dots}{optional arguments to be passed on to the function \code{\link{predict.ranger}}.}
 }
 \value{

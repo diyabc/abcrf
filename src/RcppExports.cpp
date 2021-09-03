@@ -6,6 +6,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // computeNeighboursWeights
 NumericMatrix computeNeighboursWeights(NumericMatrix predTrainingID, NumericMatrix predTestingID, int ntrain, int ntest, int ntree);
 RcppExport SEXP _abcrf_computeNeighboursWeights(SEXP predTrainingIDSEXP, SEXP predTestingIDSEXP, SEXP ntrainSEXP, SEXP ntestSEXP, SEXP ntreeSEXP) {
@@ -34,6 +39,22 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type nnew(nnewSEXP);
     Rcpp::traits::input_parameter< int >::type ntree(ntreeSEXP);
     rcpp_result_gen = Rcpp::wrap(findweights(trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntree));
+    return rcpp_result_gen;
+END_RCPP
+}
+// findweights_oob
+NumericMatrix findweights_oob(NumericMatrix trainingNodeID, NumericMatrix testingNodeID, IntegerMatrix inbag, int ntrain, int nnew, int ntree);
+RcppExport SEXP _abcrf_findweights_oob(SEXP trainingNodeIDSEXP, SEXP testingNodeIDSEXP, SEXP inbagSEXP, SEXP ntrainSEXP, SEXP nnewSEXP, SEXP ntreeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type trainingNodeID(trainingNodeIDSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type testingNodeID(testingNodeIDSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type inbag(inbagSEXP);
+    Rcpp::traits::input_parameter< int >::type ntrain(ntrainSEXP);
+    Rcpp::traits::input_parameter< int >::type nnew(nnewSEXP);
+    Rcpp::traits::input_parameter< int >::type ntree(ntreeSEXP);
+    rcpp_result_gen = Rcpp::wrap(findweights_oob(trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntree));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -119,6 +140,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_abcrf_computeNeighboursWeights", (DL_FUNC) &_abcrf_computeNeighboursWeights, 5},
     {"_abcrf_findweights", (DL_FUNC) &_abcrf_findweights, 6},
+    {"_abcrf_findweights_oob", (DL_FUNC) &_abcrf_findweights_oob, 6},
     {"_abcrf_findweights_train", (DL_FUNC) &_abcrf_findweights_train, 5},
     {"_abcrf_oobErrors", (DL_FUNC) &_abcrf_oobErrors, 7},
     {"_abcrf_oobErrorsReg", (DL_FUNC) &_abcrf_oobErrorsReg, 6},

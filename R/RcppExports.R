@@ -9,6 +9,10 @@ findweights <- function(trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntre
     .Call(`_abcrf_findweights`, trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntree)
 }
 
+findweights_oob <- function(trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntree) {
+    .Call(`_abcrf_findweights_oob`, trainingNodeID, testingNodeID, inbag, ntrain, nnew, ntree)
+}
+
 findweights_train <- function(trainingNodeID, inbag, ntrain, trainIdx, ntree) {
     .Call(`_abcrf_findweights_train`, trainingNodeID, inbag, ntrain, trainIdx, ntree)
 }

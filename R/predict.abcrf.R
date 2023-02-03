@@ -105,6 +105,23 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   
   tmp <- list(group=object$group, allocation=allocation, vote=vote, post.prob=1-predict(error.rf, obs, num.threads=ncores.predict)$predictions)
   
+  ## BEGIN OOB weights method
+  nodeIDTrain <- predict(object$model.rf, sumsta, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
+  nodeIDObs <- predict(object$model.rf, obs, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
+  
+  V <- matrix(NA, nrow = nobs, ncol = ntrain)
+  for (o in 1:nobs) {
+    for (i in 1:ntrain) {
+      V[o, i] <- sum(nodeIDObs[o, ] == nodeIDTrain[i, ] &                                   # train i in same leaf as obs
+                       sapply(object$model.rf$inbag.counts, function(inbag) inbag[i] == 0)) # and train i is OOB
+    }
+    V[o, ] <- V[o, ] / sum(V[o, ])
+  }
+  
+  error.oobw <- apply(V, 1, function(vo) sum(vo * local.error))
+  tmp$post.prob.oobw <- 1 - error.oobw
+  ## END OOB weights method
+  
   class(tmp) <- "abcrfpredict"
   tmp
 }
@@ -115,11 +132,11 @@ summary.abcrfpredict <- function(object, ...) {
 }
 
 print.abcrfpredict <- function(x, ...) {
-  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob)
+  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob, x$post.prob.oobw)
   if (length(x$group)!=0){
-    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba")
+    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw")
   } else{
-    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba")
+    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw")
   }
   print(ret, ...)
 }

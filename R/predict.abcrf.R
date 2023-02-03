@@ -106,14 +106,14 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   tmp <- list(group=object$group, allocation=allocation, vote=vote, post.prob=1-predict(error.rf, obs, num.threads=ncores.predict)$predictions)
   
   ## BEGIN OOB weights method
+  isOOB <- t(sapply(1:ntrain, function(i) sapply(object$model.rf$inbag.counts, function(inbag) inbag[i] == 0)))
   nodeIDTrain <- predict(object$model.rf, sumsta, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
   nodeIDObs <- predict(object$model.rf, obs, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
   
   V <- matrix(NA, nrow = nobs, ncol = ntrain)
   for (o in 1:nobs) {
     for (i in 1:ntrain) {
-      V[o, i] <- sum(nodeIDObs[o, ] == nodeIDTrain[i, ] &                                   # train i in same leaf as obs
-                       sapply(object$model.rf$inbag.counts, function(inbag) inbag[i] == 0)) # and train i is OOB
+      V[o, i] <- sum(nodeIDObs[o, ] == nodeIDTrain[i, ] & isOOB[i, ]) # train i in same leaf as obs and train i is OOB
     }
     V[o, ] <- V[o, ] / sum(V[o, ])
   }
@@ -121,6 +121,24 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   error.oobw <- apply(V, 1, function(vo) sum(vo * local.error))
   tmp$post.prob.oobw <- 1 - error.oobw
   ## END OOB weights method
+  
+  ## BEGIN OOB weights all models
+  predTrain <- predict(object$model.rf, sumsta, predict.all=TRUE, num.threads=ncores)$predictions
+  predTrainAll <- t(sapply(1:ntrain, function(i) as.numeric(names(sort(table(factor(predTrain[i, isOOB[i, ]], levels = 1:nmod)), decreasing = TRUE)))))
+  # any(predTrainAll[, 1] != object$model.rf$predictions) # What happens when there is equality ?
+  
+  proba.models <- matrix(NA, nrow = nobs, ncol = nmod)
+  colnames(proba.models) <- 1:nmod
+  for (o in 1:nobs) {
+    obs_mod_sel <- as.numeric(names(sort(tmp$vote[o, ], decreasing = TRUE)))
+    for (m in 1:nmod) {
+      mod_sel <- obs_mod_sel[m]
+      local.error <- as.numeric(predTrainAll[, m] != modindex)
+      proba.models[o, colnames(proba.models) == paste(mod_sel)] <- 1 - sum(V[o, ] * local.error)
+    }
+  }
+  tmp$proba.models <- proba.models
+  ## END OOB weights all models
   
   class(tmp) <- "abcrfpredict"
   tmp
@@ -132,11 +150,11 @@ summary.abcrfpredict <- function(object, ...) {
 }
 
 print.abcrfpredict <- function(x, ...) {
-  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob, x$post.prob.oobw)
+  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob, x$post.prob.oobw, x$proba.models)
   if (length(x$group)!=0){
-    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw")
+    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw", paste("post proba model ",1:dim(x$proba.models)[2],sep=""))
   } else{
-    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw")
+    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw", paste("post proba model ",1:dim(x$proba.models)[2],sep=""))
   }
   print(ret, ...)
 }

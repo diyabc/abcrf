@@ -105,39 +105,97 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   
   tmp <- list(group=object$group, allocation=allocation, vote=vote, post.prob=1-predict(error.rf, obs, num.threads=ncores.predict)$predictions)
   
-  ## BEGIN OOB weights method
-  isOOB <- t(sapply(1:ntrain, function(i) sapply(object$model.rf$inbag.counts, function(inbag) inbag[i] == 0)))
-  nodeIDTrain <- predict(object$model.rf, sumsta, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
-  nodeIDObs <- predict(object$model.rf, obs, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
-  
-  V <- matrix(NA, nrow = nobs, ncol = ntrain)
-  for (o in 1:nobs) {
-    for (i in 1:ntrain) {
-      V[o, i] <- sum(nodeIDObs[o, ] == nodeIDTrain[i, ] & isOOB[i, ]) # train i in same leaf as obs and train i is OOB
-    }
-    V[o, ] <- V[o, ] / sum(V[o, ])
-  }
-  
-  error.oobw <- apply(V, 1, function(vo) sum(vo * local.error))
-  tmp$post.prob.oobw <- 1 - error.oobw
-  ## END OOB weights method
-  
-  ## BEGIN OOB weights all models
-  predTrain <- predict(object$model.rf, sumsta, predict.all=TRUE, num.threads=ncores)$predictions
+  ## BEGIN RF error
+  ## all models : use classif forest
+  model.classif.rf <- object$model.rf
+  isOOB <- t(sapply(1:ntrain, function(i) sapply(model.classif.rf$inbag.counts, function(inbag) inbag[i] == 0)))
+  predTrain <- predict(model.classif.rf, sumsta, predict.all=TRUE, num.threads=ncores)$predictions
   predTrainAll <- t(sapply(1:ntrain, function(i) as.numeric(names(sort(table(factor(predTrain[i, isOOB[i, ]], levels = 1:nmod)), decreasing = TRUE)))))
-  # any(predTrainAll[, 1] != object$model.rf$predictions) # What happens when there is equality ?
-  
-  proba.models <- matrix(NA, nrow = nobs, ncol = nmod)
-  colnames(proba.models) <- 1:nmod
+
+  proba.models.rf.errors <- matrix(NA, nrow = nobs, ncol = nmod)
+  colnames(proba.models.rf.errors) <- 1:nmod
   for (o in 1:nobs) {
     obs_mod_sel <- as.numeric(names(sort(tmp$vote[o, ], decreasing = TRUE)))
     for (m in 1:nmod) {
       mod_sel <- obs_mod_sel[m]
       local.error <- as.numeric(predTrainAll[, m] != modindex)
-      proba.models[o, colnames(proba.models) == paste(mod_sel)] <- 1 - sum(V[o, ] * local.error)
+      data.ranger <- data.frame(local.error, sumsta)
+      error.rf <- ranger(local.error~., data=data.ranger, num.trees = ntree, 
+                         sample.fraction=sampsize/ntrain, num.threads = ncores, ...)
+      proba.models.rf.errors[o, colnames(proba.models.rf.errors) == paste(mod_sel)] <- 1 - predict(error.rf, obs[o, ], num.threads=ncores.predict)$predictions
     }
   }
-  tmp$proba.models <- proba.models
+  tmp$proba.models.rf.errors <- proba.models.rf.errors
+  ## END RF error
+  
+  ## BEGIN Malley 2012
+  prec <- 0.1
+  model.proba.rf <- ranger(object$formula, training, num.trees = ntree, sample.fraction = sampsize / nrow(training), 
+                           num.threads = ncores, keep.inbag = TRUE,
+                           probability = TRUE, splitrule = "gini", min.node.size = prec * nrow(training), ...)
+  proba.models.malley <- predict(model.proba.rf, obs)$predictions
+  tmp$proba.models.malley <- proba.models.malley
+  ## END Malley 2012
+  
+  ## BEGIN Kruppa 2014
+  prec <- 0.1
+  # datareg <- training
+  # datareg[[all.vars(object$formula)[1]]] <- as.numeric(datareg[[all.vars(object$formula)[1]]])
+  model.proba.reg.rf <- ranger(object$formula, training, num.trees = ntree, sample.fraction = sampsize / nrow(training),
+                               num.threads = ncores, keep.inbag = TRUE,
+                               probability = TRUE, splitrule = "variance", min.node.size = prec * nrow(training), ...)
+  proba.models.kruppa <- predict(model.proba.reg.rf, obs)$predictions
+  tmp$proba.models.kruppa  <- proba.models.kruppa
+  ## END Kruppa 2014
+  
+  ## BEGIN OOB weights method
+  ## Function
+  get_post_probas <- function(model.regression.rf, model.classif.rf) {
+    ## OOB weights: use reg forest
+    isOOB <- t(sapply(1:ntrain, function(i) sapply(model.regression.rf$inbag.counts, function(inbag) inbag[i] == 0)))
+    nodeIDTrain <- predict(model.regression.rf, sumsta, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
+    nodeIDObs <- predict(model.regression.rf, obs, predict.all=TRUE, num.threads=ncores, type="terminalNodes")$predictions
+    
+    V <- matrix(NA, nrow = nobs, ncol = ntrain)
+    for (o in 1:nobs) {
+      for (i in 1:ntrain) {
+        V[o, i] <- sum(nodeIDObs[o, ] == nodeIDTrain[i, ] & isOOB[i, ]) # train i in same leaf as obs and train i is OOB
+      }
+      V[o, ] <- V[o, ] / sum(V[o, ])
+    }
+    
+    ## all models : use classif forest
+    isOOB <- t(sapply(1:ntrain, function(i) sapply(model.classif.rf$inbag.counts, function(inbag) inbag[i] == 0)))
+    predTrain <- predict(model.classif.rf, sumsta, predict.all=TRUE, num.threads=ncores)$predictions
+    predTrainAll <- t(sapply(1:ntrain, function(i) as.numeric(names(sort(table(factor(predTrain[i, isOOB[i, ]], levels = 1:nmod)), decreasing = TRUE)))))
+    # any(predTrainAll[, 1] != object$model.rf$predictions) # What happens when there is equality ?
+    
+    proba.models <- matrix(NA, nrow = nobs, ncol = nmod)
+    colnames(proba.models) <- 1:nmod
+    for (o in 1:nobs) {
+      obs_mod_sel <- as.numeric(names(sort(tmp$vote[o, ], decreasing = TRUE)))
+      for (m in 1:nmod) {
+        mod_sel <- obs_mod_sel[m]
+        local.error <- as.numeric(predTrainAll[, m] != modindex)
+        proba.models[o, colnames(proba.models) == paste(mod_sel)] <- 1 - sum(V[o, ] * local.error)
+      }
+    }
+    return(proba.models)
+  }
+  
+  ## Regression forest for models
+  datareg <- training
+  datareg[[all.vars(object$formula)[1]]] <- as.numeric(datareg[[all.vars(object$formula)[1]]])
+  model.regression.rf.full <- ranger(object$formula, datareg, num.trees = ntree, sample.fraction = sampsize / nrow(training),
+                                     num.threads = ncores, keep.inbag = TRUE,
+                                     splitrule = "variance", min.node.size = 1, ...)
+  model.regression.rf <- ranger(object$formula, datareg, num.trees = ntree, sample.fraction = sampsize / nrow(training),
+                                num.threads = ncores, keep.inbag = TRUE,
+                                splitrule = "variance", ...)
+  
+  tmp$proba.models.oob.classif <- get_post_probas(object$model.rf, object$model.rf)
+  tmp$proba.models.oob.reg <- get_post_probas(model.regression.rf.full, model.regression.rf.full)
+  tmp$proba.models.oob.mix <- get_post_probas(model.regression.rf, object$model.rf)
   ## END OOB weights all models
   
   class(tmp) <- "abcrfpredict"
@@ -150,11 +208,17 @@ summary.abcrfpredict <- function(object, ...) {
 }
 
 print.abcrfpredict <- function(x, ...) {
-  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob, x$post.prob.oobw, x$proba.models)
+  ret <- cbind.data.frame(x$allocation, x$vote, x$post.prob,
+                          # x$post.prob.oobw,
+                          x$proba.models.oob.classif)
   if (length(x$group)!=0){
-    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw", paste("post proba model ",1:dim(x$proba.models)[2],sep=""))
+    colnames(ret) <- c("selected group", paste("votes group",1:dim(x$vote)[2],sep=""), "post.proba",
+                       # "post.proba.oobw",
+                       paste("post proba model ",1:dim(x$proba.models.oob.classif)[2],sep=""))
   } else{
-    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba", "post.proba.oobw", paste("post proba model ",1:dim(x$proba.models)[2],sep=""))
+    colnames(ret) <- c("selected model", paste("votes model",1:dim(x$vote)[2],sep=""), "post.proba",
+                       # "post.proba.oobw",
+                       paste("post proba model ",1:dim(x$proba.models.oob.classif)[2],sep=""))
   }
   print(ret, ...)
 }

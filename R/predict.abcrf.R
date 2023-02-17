@@ -137,16 +137,16 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   tmp$proba.models.malley <- proba.models.malley
   ## END Malley 2012
   
-  ## BEGIN Kruppa 2014
-  prec <- 0.1
-  # datareg <- training
-  # datareg[[all.vars(object$formula)[1]]] <- as.numeric(datareg[[all.vars(object$formula)[1]]])
-  model.proba.reg.rf <- ranger(object$formula, training, num.trees = ntree, sample.fraction = sampsize / nrow(training),
-                               num.threads = ncores, keep.inbag = TRUE,
-                               probability = TRUE, splitrule = "variance", min.node.size = prec * nrow(training), ...)
-  proba.models.kruppa <- predict(model.proba.reg.rf, obs)$predictions
-  tmp$proba.models.kruppa  <- proba.models.kruppa
-  ## END Kruppa 2014
+  # ## BEGIN Kruppa 2014
+  # prec <- 0.1
+  # # datareg <- training
+  # # datareg[[all.vars(object$formula)[1]]] <- as.numeric(datareg[[all.vars(object$formula)[1]]])
+  # model.proba.reg.rf <- ranger(object$formula, training, num.trees = ntree, sample.fraction = sampsize / nrow(training),
+  #                              num.threads = ncores, keep.inbag = TRUE,
+  #                              probability = TRUE, splitrule = "variance", min.node.size = prec * nrow(training), ...)
+  # proba.models.kruppa <- predict(model.proba.reg.rf, obs)$predictions
+  # tmp$proba.models.kruppa  <- proba.models.kruppa
+  # ## END Kruppa 2014
   
   ## BEGIN OOB weights method
   ## Function

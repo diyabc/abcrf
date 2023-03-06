@@ -105,39 +105,58 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   
   tmp <- list(group=object$group, allocation=allocation, vote=vote, post.prob=1-predict(error.rf, obs, num.threads=ncores.predict)$predictions)
   
-  ## BEGIN RF error
+  ## BEGIN RF error  ###########################################################
   ## all models : use classif forest
   model.classif.rf <- object$model.rf
   isOOB <- t(sapply(1:ntrain, function(i) sapply(model.classif.rf$inbag.counts, function(inbag) inbag[i] == 0)))
   predTrain <- predict(model.classif.rf, sumsta, predict.all=TRUE, num.threads=ncores)$predictions
   predTrainAll <- t(sapply(1:ntrain, function(i) as.numeric(names(sort(table(factor(predTrain[i, isOOB[i, ]], levels = 1:nmod)), decreasing = TRUE)))))
 
+  ## RF for all indexes
+  proba.models.rf.errors.indexes <- matrix(NA, nrow = nobs, ncol = nmod)
+  ## model index 1
+  proba.models.rf.errors.indexes[, 1] <- 1 - predict(error.rf, obs, num.threads=ncores.predict)$predictions
+  ## all others
+  for (m in seq_len(nmod - 2) + 1) {
+    local.error <- as.numeric(predTrainAll[, m] != modindex)
+    data.ranger <- data.frame(local.error, sumsta)
+    error.rf <- ranger(local.error~., data=data.ranger, num.trees = ntree, 
+                       sample.fraction=sampsize/ntrain, num.threads = ncores, ...)
+    proba.models.rf.errors.indexes[, m] <- 1 - predict(error.rf, obs, num.threads=ncores.predict)$predictions
+  }
+  
+  ## Allocate each observation
   proba.models.rf.errors <- matrix(NA, nrow = nobs, ncol = nmod)
   colnames(proba.models.rf.errors) <- 1:nmod
   for (o in 1:nobs) {
     obs_mod_sel <- as.numeric(names(sort(tmp$vote[o, ], decreasing = TRUE)))
-    for (m in 1:nmod) {
+    for (m in 1:(nmod-1)) {
       mod_sel <- obs_mod_sel[m]
-      local.error <- as.numeric(predTrainAll[, m] != modindex)
-      data.ranger <- data.frame(local.error, sumsta)
-      error.rf <- ranger(local.error~., data=data.ranger, num.trees = ntree, 
-                         sample.fraction=sampsize/ntrain, num.threads = ncores, ...)
-      proba.models.rf.errors[o, colnames(proba.models.rf.errors) == paste(mod_sel)] <- 1 - predict(error.rf, obs[o, ], num.threads=ncores.predict)$predictions
+      proba.models.rf.errors[o, colnames(proba.models.rf.errors) == paste(mod_sel)] <- proba.models.rf.errors.indexes[o, m]
+    }
+    # last class = 1 - all the others
+    mod_sel <- obs_mod_sel[nmod]
+    ss <- sum(proba.models.rf.errors[o, colnames(proba.models.rf.errors) != paste(mod_sel)])
+    if (ss > 1) { # sum larger than one : re-normalize
+      proba.models.rf.errors[o, colnames(proba.models.rf.errors) == paste(mod_sel)] <- 0
+      proba.models.rf.errors[o, ] <-  proba.models.rf.errors[o, ] / ss
+    } else {
+      proba.models.rf.errors[o, colnames(proba.models.rf.errors) == paste(mod_sel)] <- 1 - ss
     }
   }
   tmp$proba.models.rf.errors <- proba.models.rf.errors
-  ## END RF error
+  ## END RF error  #############################################################
   
-  ## BEGIN Malley 2012
+  ## BEGIN Malley 2012 #########################################################
   prec <- 0.1
   model.proba.rf <- ranger(object$formula, training, num.trees = ntree, sample.fraction = sampsize / nrow(training), 
                            num.threads = ncores, keep.inbag = TRUE,
                            probability = TRUE, splitrule = "gini", min.node.size = prec * nrow(training), ...)
   proba.models.malley <- predict(model.proba.rf, obs)$predictions
   tmp$proba.models.malley <- proba.models.malley
-  ## END Malley 2012
+  ## END Malley 2012  ##########################################################
   
-  # ## BEGIN Kruppa 2014
+  # ## BEGIN Kruppa 2014 #########################################################
   # prec <- 0.1
   # # datareg <- training
   # # datareg[[all.vars(object$formula)[1]]] <- as.numeric(datareg[[all.vars(object$formula)[1]]])
@@ -146,9 +165,9 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   #                              probability = TRUE, splitrule = "variance", min.node.size = prec * nrow(training), ...)
   # proba.models.kruppa <- predict(model.proba.reg.rf, obs)$predictions
   # tmp$proba.models.kruppa  <- proba.models.kruppa
-  # ## END Kruppa 2014
+  # ## END Kruppa 2014  ##########################################################
   
-  ## BEGIN OOB weights method
+  ## BEGIN OOB weights method  #################################################
   ## Function
   get_post_probas <- function(model.regression.rf, model.classif.rf) {
     ## OOB weights: use reg forest
@@ -196,7 +215,7 @@ predict.abcrf <- function(object, obs, training, ntree = 1000, sampsize = min(1e
   tmp$proba.models.oob.classif <- get_post_probas(object$model.rf, object$model.rf)
   tmp$proba.models.oob.reg <- get_post_probas(model.regression.rf.full, model.regression.rf.full)
   tmp$proba.models.oob.mix <- get_post_probas(model.regression.rf, object$model.rf)
-  ## END OOB weights all models
+  ## END OOB weights all models  ###############################################
   
   class(tmp) <- "abcrfpredict"
   tmp
